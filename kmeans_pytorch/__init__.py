@@ -129,3 +129,25 @@ def pairwise_cosine(data1, data2):
     cosine_dis = 1 - cosine.sum(dim=-1).squeeze()
     return cosine_dis
 
+def pairwise_soft_dtw(data1, data2, sdtw=None):
+    if sdtw is None:
+        raise ValueError('sdtw is None - initialize it with SoftDTW')
+
+    # (batch_size, seq_len, feature_dim=1)
+    A = data1.unsqueeze(dim=2)
+
+    # (cluster_size, seq_len, feature_dim=1)
+    B = data2.unsqueeze(dim=2)
+
+    distances = []
+    for b in B:
+        # (1, seq_len, 1)
+        b = b.unsqueeze(dim=0)
+        A, b = torch.broadcast_tensors(A, b)
+        # (batch_size, 1)
+        sdtw_distance = sdtw(b, A).view(-1, 1)
+        distances.append(sdtw_distance)
+
+    # (batch_size, cluster_size)
+    dis = torch.cat(distances, dim=1)
+    return dis
