@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+from .soft_dtw_cuda import SoftDTW
 
 
 def initialize(X, num_clusters):
@@ -19,21 +20,27 @@ def kmeans(
         X,
         num_clusters,
         distance='euclidean',
-        max_iterations = 10
+        max_iterations = 10,
+        gamma_for_soft_dtw=0.001
 ):
     """
     perform kmeans
     :param X: (torch.tensor) matrix
     :param num_clusters: (int) number of clusters
     :param distance: (str) distance [options: 'euclidean', 'cosine'] [default: 'euclidean']
+    :param gamma_for_soft_dtw: approaches to (hard) DTW as gamma -> 0
     :return: (torch.tensor, torch.tensor) cluster ids, cluster centers
     """
-    if distance == 'euclidean':
-        pairwise_distance_function = pairwise_distance
-    elif distance == 'cosine':
-        pairwise_distance_function = pairwise_cosine
-    else:
-        raise NotImplementedError
+    match distance:
+        case 'euclidean':
+            pairwise_distance_function = pairwise_distance
+        case 'cosine':
+            pairwise_distance_function = pairwise_cosine
+        case 'soft_dtw':
+            sdtw = SoftDTW(use_cuda=(x.device.type == 'cuda'), gamma=gamma_for_soft_dtw)
+            pairwise_distance_function = partial(pairwise_soft_dtw, sdtw=sdtw)
+        case _:
+            raise NotImplementedError
 
     # initialize
     initial_state = initialize(X, num_clusters)
@@ -60,21 +67,26 @@ def kmeans_predict(
         X,
         cluster_centers,
         distance='euclidean',
+        gamma_for_soft_dtw=0.001
 ):
     """
     predict using cluster centers
     :param X: (torch.tensor) matrix
     :param cluster_centers: (torch.tensor) cluster centers
     :param distance: (str) distance [options: 'euclidean', 'cosine'] [default: 'euclidean']
+    :param gamma_for_soft_dtw: approaches to (hard) DTW as gamma -> 0
     :return: (torch.tensor) cluster ids
     """
-
-    if distance == 'euclidean':
-        pairwise_distance_function = pairwise_distance
-    elif distance == 'cosine':
-        pairwise_distance_function = pairwise_cosine
-    else:
-        raise NotImplementedError
+    match distance:
+        case 'euclidean':
+            pairwise_distance_function = pairwise_distance
+        case 'cosine':
+            pairwise_distance_function = pairwise_cosine
+        case 'soft_dtw':
+            sdtw = SoftDTW(use_cuda=(x.device.type == 'cuda'), gamma=gamma_for_soft_dtw)
+            pairwise_distance_function = partial(pairwise_soft_dtw, sdtw=sdtw)
+        case _:
+            raise NotImplementedError
 
     # convert to float
     X = X.float()
